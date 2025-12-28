@@ -25,7 +25,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
   ];
 
   final TextEditingController _roomController = TextEditingController();
-  final TextEditingController _remarksController = TextEditingController();
+  final TextEditingController _remarksController = TextEditingController(); 
   String _selectedPayment = 'Cash'; 
   
   // 2. Logic Category
@@ -46,11 +46,11 @@ class _PaymentScreenState extends State<PaymentScreen> {
     if (userCart.isNotEmpty) {
       String icon = userCart[0]['image_icon'] ?? '';
       
-      if (['print', 'menu_book'].contains(icon)) {
+      if (['print', 'menu_book', 'layers'].contains(icon)) { 
         orderCategory = 'Printing';
-        _deliveryType = 'Self Pickup (Shop)'; // Default for printing
+        _deliveryType = 'Self Pickup (Shop)'; 
       } 
-      else if (['computer', 'save', 'cleaning_services'].contains(icon)) {
+      else if (['computer', 'save', 'cleaning_services', 'build'].contains(icon)) {
         orderCategory = 'Service';
         _deliveryType = 'Walk-in / Pickup';
       } 
@@ -66,8 +66,9 @@ class _PaymentScreenState extends State<PaymentScreen> {
       if (_bindingType == 'Tape Binding') total += 1.00;
       if (_bindingType == 'Comb Binding') total += 2.00;
     }
-    // Add cost if using Runner/Delivery
-    if (_deliveryType.contains('Runner') || _deliveryType == 'Deliver to Room') total += 2.00; 
+    // Add cost if using Runner/Delivery/Lobby
+    // NOTE: Meet at Lobby also incurs fee as it's a delivery
+    if (_deliveryType.contains('Runner') || _deliveryType == 'Deliver to Room' || _deliveryType == 'Meet at Lobby') total += 2.00; 
     return total;
   }
 
@@ -88,24 +89,29 @@ class _PaymentScreenState extends State<PaymentScreen> {
   }
 
   void _handlePayment() {
-    // Validation
     if (orderCategory == 'Printing' && _uploadedFile == null) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Please upload your document first!"), backgroundColor: Colors.red));
       return;
     }
     
-    // Check Room Number ONLY if delivery/runner is selected
-    if ((_deliveryType == 'Deliver to Room' || _deliveryType.contains('Runner')) && _roomController.text.isEmpty) {
+    // Check Room Number ONLY if "Deliver to Room" is selected
+    if (_deliveryType == 'Deliver to Room' && _roomController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Please enter your Room Number"), backgroundColor: Colors.red));
       return;
     }
 
     // --- CONSTRUCT LOCATION STRING ---
-    // This is crucial for the Order Details logic to work!
     String finalLocation = _deliveryType;
     
-    if (_deliveryType.contains('Room') || _deliveryType.contains('Runner')) {
+    if (_deliveryType == 'Deliver to Room') {
       finalLocation = "$_deliveryType ($_selectedCollege, ${_roomController.text})";
+    } 
+    // --- FIX: Meet at Lobby also needs College ---
+    else if (_deliveryType == 'Meet at Lobby') {
+      finalLocation = "$_deliveryType ($_selectedCollege)";
+    }
+    else if (_deliveryType.contains('Runner')) {
+       finalLocation = "$_deliveryType ($_selectedCollege)"; // Runner needs to know where to go
     }
 
     String successMsg = "Your order has been placed.";
@@ -129,7 +135,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                   'time': 'Just Now',
                   'day': 'Today',
                   'location': finalLocation, 
-                  'items': List.from(userCart),
+                  'items': List.from(userCart), 
                   'binding': orderCategory == 'Printing' ? _bindingType : null,
                   'double_sided': orderCategory == 'Printing' ? _isDoubleSided : null,
                   'remarks': _remarksController.text.isEmpty ? 'None' : _remarksController.text,
@@ -148,7 +154,6 @@ class _PaymentScreenState extends State<PaymentScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // --- DROPDOWN OPTIONS MUST MATCH STRINGS EXACTLY ---
     List<String> deliveryOptions = ["Deliver to Room", "Meet at Lobby"];
     if (orderCategory == 'Service') deliveryOptions = ["Walk-in / Pickup", "Runner Pickup (Extra RM2)"];
     if (orderCategory == 'Printing') deliveryOptions = ["Self Pickup (Shop)", "Runner Delivery (Extra RM2)"];
@@ -201,9 +206,15 @@ class _PaymentScreenState extends State<PaymentScreen> {
               padding: const EdgeInsets.all(15),
               decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15), border: Border.all(color: Colors.grey.shade200)),
               child: Column(children: [
-                  DropdownButtonFormField<String>(value: _deliveryType, decoration: InputDecoration(labelText: "Method", border: const OutlineInputBorder(), prefixIcon: Icon(orderCategory == 'Printing' ? Icons.print : Icons.location_on, color: Colors.deepPurple)), items: deliveryOptions.map((String val) => DropdownMenuItem(value: val, child: Text(val))).toList(), onChanged: (val) => setState(() => _deliveryType = val!)),
+                  DropdownButtonFormField<String>(
+                    value: _deliveryType, 
+                    items: deliveryOptions.map((String val) => DropdownMenuItem(value: val, child: Text(val))).toList(), 
+                    onChanged: (val) => setState(() => _deliveryType = val!),
+                    decoration: InputDecoration(labelText: "Method", border: const OutlineInputBorder(), prefixIcon: Icon(orderCategory == 'Printing' ? Icons.print : Icons.location_on, color: Colors.deepPurple))
+                  ),
                   
-                  if (_deliveryType.contains('Room') || _deliveryType.contains('Runner')) ...[
+                  // --- FIX: Show College Selection for ALL delivery types except Self Pickup ---
+                  if (!_deliveryType.contains('Self') && !_deliveryType.contains('Walk-in')) ...[
                     const SizedBox(height: 15),
                     DropdownButtonFormField<String>(
                       value: _selectedCollege,
@@ -211,11 +222,19 @@ class _PaymentScreenState extends State<PaymentScreen> {
                       items: _collegeList.map((String val) => DropdownMenuItem(value: val, child: Text(val, style: const TextStyle(fontSize: 14)))).toList(),
                       onChanged: (val) => setState(() => _selectedCollege = val!),
                     ),
+                  ],
+
+                  // Show Room Number ONLY for "Deliver to Room"
+                  if (_deliveryType == 'Deliver to Room') ...[
                     const SizedBox(height: 15),
                     TextField(controller: _roomController, decoration: const InputDecoration(labelText: "Room Number (e.g. A-201)", border: OutlineInputBorder(), prefixIcon: Icon(Icons.door_front_door, color: Colors.deepPurple))),
+                  ],
+
+                  // Show Delivery Fee Note
+                  if (!_deliveryType.contains('Self') && !_deliveryType.contains('Walk-in')) ...[
                     const SizedBox(height: 5),
                     const Text("+ RM 2.00 Delivery Fee", style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold, fontSize: 12)),
-                  ],
+                  ]
               ]),
             ),
             const SizedBox(height: 30),

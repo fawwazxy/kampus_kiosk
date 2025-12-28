@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dummy_data.dart';
-import 'payment_screen.dart'; // Make sure this import is here!
+import 'payment_screen.dart'; 
 
 class CartScreen extends StatefulWidget {
   const CartScreen({super.key});
@@ -82,6 +82,9 @@ class _CartScreenState extends State<CartScreen> {
                     itemBuilder: (context, index) {
                       final item = userCart[index];
                       final double itemTotal = double.parse(item['price'].toString()) * (item['quantity'] as int);
+                      
+                      // Check if there are remarks (e.g., Size or Instructions)
+                      String remarks = item['remarks'] ?? '';
 
                       return Card(
                         margin: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
@@ -93,16 +96,30 @@ class _CartScreenState extends State<CartScreen> {
                               Container(
                                 padding: const EdgeInsets.all(10),
                                 decoration: BoxDecoration(color: Colors.deepPurple[50], borderRadius: BorderRadius.circular(10)),
-                                child: const Icon(Icons.fastfood, color: Colors.deepPurple),
+                                child: Icon(
+                                  item['image_icon'] == 'checkroom' ? Icons.checkroom : 
+                                  item['image_icon'] == 'computer' ? Icons.computer : 
+                                  item['image_icon'] == 'print' ? Icons.print : 
+                                  Icons.fastfood, 
+                                  color: Colors.deepPurple
+                                ),
                               ),
                               const SizedBox(width: 15),
 
-                              // Name & Price Info
+                              // Name, Price & Remarks Info
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(item['name'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                                    
+                                    // SHOW SIZE / REMARKS HERE
+                                    if (remarks.isNotEmpty)
+                                      Padding(
+                                        padding: const EdgeInsets.only(top: 2, bottom: 2),
+                                        child: Text(remarks, style: const TextStyle(color: Colors.orange, fontSize: 12, fontWeight: FontWeight.bold)),
+                                      ),
+
                                     Text("RM ${item['price']} each", style: const TextStyle(color: Colors.grey, fontSize: 12)),
                                     const SizedBox(height: 5),
                                     Text("Total: RM ${itemTotal.toStringAsFixed(2)}", style: const TextStyle(color: Colors.deepPurple, fontWeight: FontWeight.bold)),
@@ -147,7 +164,7 @@ class _CartScreenState extends State<CartScreen> {
                                   IconButton(
                                     icon: const Icon(Icons.delete_outline, color: Colors.grey),
                                     onPressed: () {
-                                       showDeleteConfirmation(index, item['name']);
+                                      showDeleteConfirmation(index, item['name']);
                                     },
                                   )
                                 ],
