@@ -12,26 +12,27 @@ class PaymentScreen extends StatefulWidget {
 }
 
 class _PaymentScreenState extends State<PaymentScreen> {
-  // 1. General State
-  String _deliveryType = 'Deliver to Room'; 
+  // --- 1. STATE VARIABLES ---
+  String _orderMethod = 'Delivery'; 
+  String _deliveryLocation = 'Lobby'; 
   
-  // College Selection
   String _selectedCollege = 'Kolej Malinja (Siswa)'; 
   final List<String> _collegeList = [
     'Kolej Malinja (Siswa)',
     'Kolej Murni (Siswi)',
     'Kolej Masria (Siswi)',
     'Kolej Mahsuri (Siswi)',
+    'Kolej Jasmine (Siswi)',
   ];
 
   final TextEditingController _roomController = TextEditingController();
   final TextEditingController _remarksController = TextEditingController(); 
   String _selectedPayment = 'Cash'; 
   
-  // 2. Logic Category
+  // Logic Category
   String orderCategory = 'Food'; 
 
-  // 3. Printing Specific State
+  // Printing Specific State
   String? _uploadedFile;
   String _bindingType = 'Staple (Corner)';
   bool _isDoubleSided = false;
@@ -48,11 +49,9 @@ class _PaymentScreenState extends State<PaymentScreen> {
       
       if (['print', 'menu_book', 'layers'].contains(icon)) { 
         orderCategory = 'Printing';
-        _deliveryType = 'Self Pickup (Shop)'; 
       } 
       else if (['computer', 'save', 'cleaning_services', 'build'].contains(icon)) {
         orderCategory = 'Service';
-        _deliveryType = 'Walk-in / Pickup';
       } 
       else if (icon == 'checkroom') {
         orderCategory = 'Fashion';
@@ -60,16 +59,28 @@ class _PaymentScreenState extends State<PaymentScreen> {
     }
   }
 
-  double get _finalTotal {
-    double total = widget.totalAmount;
+  // --- 2. FEE CALCULATORS (New Helper Getters) ---
+  
+  // Calculate Binding Fee separately
+  double get _bindingFee {
     if (orderCategory == 'Printing') {
-      if (_bindingType == 'Tape Binding') total += 1.00;
-      if (_bindingType == 'Comb Binding') total += 2.00;
+      if (_bindingType == 'Tape Binding') return 1.00;
+      if (_bindingType == 'Comb Binding') return 2.00;
     }
-    // Add cost if using Runner/Delivery/Lobby
-    // NOTE: Meet at Lobby also incurs fee as it's a delivery
-    if (_deliveryType.contains('Runner') || _deliveryType == 'Deliver to Room' || _deliveryType == 'Meet at Lobby') total += 2.00; 
-    return total;
+    return 0.00;
+  }
+
+  // Calculate Delivery Fee separately
+  double get _deliveryFee {
+    if (_orderMethod == 'Delivery') {
+      return 2.00;
+    }
+    return 0.00;
+  }
+
+  // Final Total combines everything
+  double get _finalTotal {
+    return widget.totalAmount + _bindingFee + _deliveryFee;
   }
 
   void _simulateFileUpload() {
@@ -89,29 +100,32 @@ class _PaymentScreenState extends State<PaymentScreen> {
   }
 
   void _handlePayment() {
+    // Validation
     if (orderCategory == 'Printing' && _uploadedFile == null) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Please upload your document first!"), backgroundColor: Colors.red));
       return;
     }
     
-    // Check Room Number ONLY if "Deliver to Room" is selected
-    if (_deliveryType == 'Deliver to Room' && _roomController.text.isEmpty) {
+    if (_orderMethod == 'Delivery' && _deliveryLocation == 'Room' && _roomController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Please enter your Room Number"), backgroundColor: Colors.red));
       return;
     }
 
-    // --- CONSTRUCT LOCATION STRING ---
-    String finalLocation = _deliveryType;
-    
-    if (_deliveryType == 'Deliver to Room') {
-      finalLocation = "$_deliveryType ($_selectedCollege, ${_roomController.text})";
+    // Construct Location String
+    String finalLocationStr = "";
+
+    if (_orderMethod == 'Pickup') {
+      finalLocationStr = orderCategory == 'Service' ? "Walk-in (Shop)" : "Self-Pickup (Shop)";
     } 
-    // --- FIX: Meet at Lobby also needs College ---
-    else if (_deliveryType == 'Meet at Lobby') {
-      finalLocation = "$_deliveryType ($_selectedCollege)";
-    }
-    else if (_deliveryType.contains('Runner')) {
-       finalLocation = "$_deliveryType ($_selectedCollege)"; // Runner needs to know where to go
+    else {
+      String base = _deliveryLocation == 'Room' ? "Deliver to Room" : "Meet at Lobby";
+      String details = "";
+      if (_deliveryLocation == 'Room') {
+        details = "($_selectedCollege, ${_roomController.text})";
+      } else {
+        details = "($_selectedCollege)";
+      }
+      finalLocationStr = "Runner Delivery: $base $details";
     }
 
     String successMsg = "Your order has been placed.";
@@ -131,15 +145,16 @@ class _PaymentScreenState extends State<PaymentScreen> {
                 activeOrders.insert(0, {
                   'id': '#ORD-${DateTime.now().millisecondsSinceEpoch.toString().substring(8)}',
                   'total': _finalTotal.toStringAsFixed(2),
-                  'status': 'Pending', // Start as Pending
+                  'status': 'Pending', 
                   'time': 'Just Now',
                   'day': 'Today',
-                  'location': finalLocation, 
+                  'location': finalLocationStr, 
                   'items': List.from(userCart), 
                   'binding': orderCategory == 'Printing' ? _bindingType : null,
                   'double_sided': orderCategory == 'Printing' ? _isDoubleSided : null,
                   'remarks': _remarksController.text.isEmpty ? 'None' : _remarksController.text,
                   'file': _uploadedFile,
+                  'rider_name': null,
                 });
                 userCart.clear(); 
               });
@@ -154,10 +169,6 @@ class _PaymentScreenState extends State<PaymentScreen> {
 
   @override
   Widget build(BuildContext context) {
-    List<String> deliveryOptions = ["Deliver to Room", "Meet at Lobby"];
-    if (orderCategory == 'Service') deliveryOptions = ["Walk-in / Pickup", "Runner Pickup (Extra RM2)"];
-    if (orderCategory == 'Printing') deliveryOptions = ["Self Pickup (Shop)", "Runner Delivery (Extra RM2)"];
-
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(title: Text(orderCategory == 'Printing' ? "Print Job Checkout" : "Checkout", style: const TextStyle(color: Colors.black)), backgroundColor: Colors.white, iconTheme: const IconThemeData(color: Colors.black), elevation: 0),
@@ -166,6 +177,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // --- PRINTING UPLOAD SECTION ---
             if (orderCategory == 'Printing') ...[
               const Text("Document Details", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 10),
@@ -200,21 +212,36 @@ class _PaymentScreenState extends State<PaymentScreen> {
               const SizedBox(height: 30),
             ],
 
-            Text(orderCategory == 'Printing' ? "Collection Method" : "Delivery Details", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            // --- COLLECTION / DELIVERY METHOD SECTION ---
+            Text(orderCategory == 'Service' ? "Service Method" : "Collection Method", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 10),
+            
             Container(
               padding: const EdgeInsets.all(15),
               decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15), border: Border.all(color: Colors.grey.shade200)),
               child: Column(children: [
                   DropdownButtonFormField<String>(
-                    value: _deliveryType, 
-                    items: deliveryOptions.map((String val) => DropdownMenuItem(value: val, child: Text(val))).toList(), 
-                    onChanged: (val) => setState(() => _deliveryType = val!),
+                    value: _orderMethod, 
+                    items: ["Pickup", "Delivery"].map((String val) {
+                      String label = val;
+                      if (val == "Pickup") label = orderCategory == 'Service' ? "Walk-in (Bring device to shop)" : "Self Pickup (Go to shop)";
+                      if (val == "Delivery") label = orderCategory == 'Service' ? "Runner Pickup (We collect from you)" : "Runner Delivery";
+                      return DropdownMenuItem(value: val, child: Text(label));
+                    }).toList(), 
+                    onChanged: (val) => setState(() => _orderMethod = val!),
                     decoration: InputDecoration(labelText: "Method", border: const OutlineInputBorder(), prefixIcon: Icon(orderCategory == 'Printing' ? Icons.print : Icons.location_on, color: Colors.deepPurple))
                   ),
                   
-                  // --- FIX: Show College Selection for ALL delivery types except Self Pickup ---
-                  if (!_deliveryType.contains('Self') && !_deliveryType.contains('Walk-in')) ...[
+                  if (_orderMethod == 'Delivery') ...[
+                    const SizedBox(height: 15),
+                    const Divider(),
+                    const SizedBox(height: 10),
+                    DropdownButtonFormField<String>(
+                      value: _deliveryLocation,
+                      decoration: const InputDecoration(labelText: "Delivery Location", border: OutlineInputBorder(), isDense: true),
+                      items: ["Lobby", "Room"].map((String val) => DropdownMenuItem(value: val, child: Text(val == 'Lobby' ? "Meet at Lobby" : "Deliver to Room"))).toList(),
+                      onChanged: (val) => setState(() => _deliveryLocation = val!),
+                    ),
                     const SizedBox(height: 15),
                     DropdownButtonFormField<String>(
                       value: _selectedCollege,
@@ -222,35 +249,69 @@ class _PaymentScreenState extends State<PaymentScreen> {
                       items: _collegeList.map((String val) => DropdownMenuItem(value: val, child: Text(val, style: const TextStyle(fontSize: 14)))).toList(),
                       onChanged: (val) => setState(() => _selectedCollege = val!),
                     ),
-                  ],
-
-                  // Show Room Number ONLY for "Deliver to Room"
-                  if (_deliveryType == 'Deliver to Room') ...[
-                    const SizedBox(height: 15),
-                    TextField(controller: _roomController, decoration: const InputDecoration(labelText: "Room Number (e.g. A-201)", border: OutlineInputBorder(), prefixIcon: Icon(Icons.door_front_door, color: Colors.deepPurple))),
-                  ],
-
-                  // Show Delivery Fee Note
-                  if (!_deliveryType.contains('Self') && !_deliveryType.contains('Walk-in')) ...[
+                    if (_deliveryLocation == 'Room') ...[
+                      const SizedBox(height: 15),
+                      TextField(controller: _roomController, decoration: const InputDecoration(labelText: "Room Number (e.g. A-201)", border: OutlineInputBorder(), prefixIcon: Icon(Icons.door_front_door, color: Colors.deepPurple))),
+                    ],
                     const SizedBox(height: 5),
-                    const Text("+ RM 2.00 Delivery Fee", style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold, fontSize: 12)),
-                  ]
+                    const Text("+ RM 2.00 Delivery Fee applied", style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold, fontSize: 12)),
+                  ],
               ]),
             ),
             const SizedBox(height: 30),
 
+            // --- 3. UPDATED ORDER SUMMARY ---
             const Text("Order Summary", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 10),
             Container(
               padding: const EdgeInsets.all(15),
               decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15), border: Border.all(color: Colors.grey.shade200)),
-              child: Column(children: [
-                ...userCart.map((item) => Padding(padding: const EdgeInsets.symmetric(vertical: 5), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Expanded(child: Text("${item['quantity']}x ${item['name']}", style: const TextStyle(fontSize: 14))), Text("RM ${(double.parse(item['price'].toString()) * (item['quantity'] as int)).toStringAsFixed(2)}", style: const TextStyle(fontWeight: FontWeight.bold))]))), 
-                const Divider(thickness: 1, height: 30), 
-                Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text("Total Amount", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)), Text("RM ${_finalTotal.toStringAsFixed(2)}", style: const TextStyle(fontSize: 18, color: Colors.deepPurple, fontWeight: FontWeight.bold))])]),
+              child: Column(
+                children: [
+                  // List Items
+                  ...userCart.map((item) => Padding(padding: const EdgeInsets.symmetric(vertical: 5), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Expanded(child: Text("${item['quantity']}x ${item['name']}", style: const TextStyle(fontSize: 14))), Text("RM ${(double.parse(item['price'].toString()) * (item['quantity'] as int)).toStringAsFixed(2)}", style: const TextStyle(fontWeight: FontWeight.bold))]))), 
+                  
+                  const Divider(thickness: 1, height: 20),
+                  
+                  // Subtotal (Cart items only)
+                  Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                    const Text("Subtotal", style: TextStyle(color: Colors.grey)), 
+                    Text("RM ${widget.totalAmount.toStringAsFixed(2)}", style: const TextStyle(fontWeight: FontWeight.bold))
+                  ]),
+
+                  // Binding Fee (Only shows if there is a fee)
+                  if (_bindingFee > 0)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 5),
+                      child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                        const Text("Binding Fee", style: TextStyle(color: Colors.grey)), 
+                        Text("RM ${_bindingFee.toStringAsFixed(2)}", style: const TextStyle(fontWeight: FontWeight.bold))
+                      ]),
+                    ),
+
+                  // Delivery Fee (Only shows if delivery selected)
+                  if (_deliveryFee > 0)
+                     Padding(
+                      padding: const EdgeInsets.only(top: 5),
+                      child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                        const Text("Delivery Fee", style: TextStyle(color: Colors.grey)), 
+                        Text("RM ${_deliveryFee.toStringAsFixed(2)}", style: const TextStyle(fontWeight: FontWeight.bold))
+                      ]),
+                    ),
+
+                  const Divider(thickness: 1, height: 20), 
+                  
+                  // Final Total
+                  Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                    const Text("Total Amount", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)), 
+                    Text("RM ${_finalTotal.toStringAsFixed(2)}", style: const TextStyle(fontSize: 18, color: Colors.deepPurple, fontWeight: FontWeight.bold))
+                  ])
+                ]
+              ),
             ),
             const SizedBox(height: 30),
 
+            // --- PAYMENT METHOD ---
             const Text("Payment Method", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 10),
             _buildPaymentOption(icon: Icons.money, title: "Cash Payment", value: "Cash", subtitle: orderCategory == 'Printing' ? "Pay at counter / to runner" : "Pay when you receive the item"),

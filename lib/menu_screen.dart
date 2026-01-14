@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'dummy_data.dart';
 import 'cart_screen.dart';
 import 'login_screen.dart';
+import 'chat_screen.dart'; 
 
 class MenuScreen extends StatefulWidget {
   final String selectedCategory;
@@ -16,7 +17,7 @@ class _MenuScreenState extends State<MenuScreen> {
   String _searchQuery = "";
 
   void refresh() {
-    setState(() {}); // Updates UI when returning from Cart
+    setState(() {}); 
   }
 
   int getCartTotalCount() {
@@ -31,7 +32,7 @@ class _MenuScreenState extends State<MenuScreen> {
   Widget build(BuildContext context) {
     // 1. FILTER SELLERS BASED ON CATEGORY
     final categoryItems = foodMenu.where((item) {
-      String icon = item['image_icon']!;
+      String icon = item['image_icon'] ?? '';
       String itemCat = 'Food & Drinks'; 
       if (icon == 'checkroom') itemCat = 'Fashion';
       if (['print', 'computer', 'save', 'cleaning_services', 'menu_book', 'build', 'layers'].contains(icon)) itemCat = 'Services';
@@ -54,7 +55,6 @@ class _MenuScreenState extends State<MenuScreen> {
     return Scaffold(
       backgroundColor: Colors.grey[50],
       
-      // FLOATING CART BUTTON
       floatingActionButton: userCart.isNotEmpty 
         ? FloatingActionButton.extended(
             onPressed: () {
@@ -172,7 +172,7 @@ class _MenuScreenState extends State<MenuScreen> {
   }
 }
 
-// --- ADVANCED FOOD ITEMS SCREEN ---
+// --- ADVANCED FOOD ITEMS SCREEN (SHOP DETAIL) ---
 
 class FoodItemsScreen extends StatefulWidget {
   final String sellerName;
@@ -233,6 +233,12 @@ class _FoodItemsScreenState extends State<FoodItemsScreen> {
     return 'Others';
   }
 
+  String _getTopLevelCategory(String icon) {
+    if (icon == 'checkroom') return 'Fashion';
+    if (['print', 'computer', 'save', 'cleaning_services', 'menu_book', 'build', 'layers'].contains(icon)) return 'Services';
+    return 'Food & Drinks';
+  }
+
   void _scrollToCategory(String category) {
     setState(() => selectedFilter = category);
     final key = sectionKeys[category];
@@ -257,7 +263,72 @@ class _FoodItemsScreenState extends State<FoodItemsScreen> {
     return total;
   }
 
-  // --- SMART ADD TO CART DIALOG (FASHION AWARE) ---
+  // --- SHOW SHOP INFO DIALOG ---
+  void _showShopInfoDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            const Icon(Icons.store, color: Colors.deepPurple),
+            const SizedBox(width: 10),
+            Expanded(child: Text(widget.sellerName, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold))),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.deepPurple.shade50,
+                borderRadius: BorderRadius.circular(10)
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.location_on, color: Colors.deepPurple, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(widget.collegeName, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.deepPurple))),
+                ],
+              ),
+            ),
+            const SizedBox(height: 15),
+            const Text("About", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            const SizedBox(height: 5),
+            Text(
+              "Welcome to ${widget.sellerName}! We offer the best quality items and services in ${widget.collegeName}. Order now for fast delivery or pickup.",
+              style: TextStyle(color: Colors.grey[700], height: 1.4),
+            ),
+            const SizedBox(height: 15),
+            Row(
+              children: const [
+                Icon(Icons.access_time, color: Colors.orange, size: 18),
+                SizedBox(width: 8),
+                Text("Open: 8:00 AM - 10:00 PM", style: TextStyle(fontWeight: FontWeight.w500)),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: const [
+                Icon(Icons.star, color: Colors.amber, size: 18),
+                SizedBox(width: 8),
+                Text("4.8 (120+ Reviews)", style: TextStyle(fontWeight: FontWeight.w500)),
+              ],
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx), 
+            child: const Text("Close", style: TextStyle(color: Colors.deepPurple, fontWeight: FontWeight.bold))
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showAddToCartDialog(Map<String, String> food) {
     if (isGuest) {
       showDialog(context: context, builder: (context) => AlertDialog(title: const Text("Login Required"), content: const Text("Please login to order."), actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")), ElevatedButton(onPressed: () { Navigator.pop(context); Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (context) => const LoginScreen()), (r) => false); }, child: const Text("Login"))]));
@@ -267,9 +338,8 @@ class _FoodItemsScreenState extends State<FoodItemsScreen> {
     int quantity = 1;
     TextEditingController remarksController = TextEditingController();
     
-    // FASHION LOGIC
     bool isFashion = food['image_icon'] == 'checkroom';
-    String selectedSize = 'M'; // Default Size
+    String selectedSize = 'M'; 
     List<String> sizes = ['S', 'M', 'L', 'XL', 'XXL'];
 
     showModalBottomSheet(
@@ -289,7 +359,6 @@ class _FoodItemsScreenState extends State<FoodItemsScreen> {
                   Text("RM ${food['price']}", style: const TextStyle(fontSize: 18, color: Colors.deepPurple, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 20),
                   
-                  // --- SIZE SELECTOR (ONLY FOR FASHION) ---
                   if (isFashion) ...[
                     const Text("Select Size", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 10),
@@ -316,7 +385,6 @@ class _FoodItemsScreenState extends State<FoodItemsScreen> {
                     const SizedBox(height: 20),
                   ],
 
-                  // Quantity
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -332,7 +400,6 @@ class _FoodItemsScreenState extends State<FoodItemsScreen> {
                   ),
                   const SizedBox(height: 10),
                   
-                  // Remarks
                   TextField(
                     controller: remarksController,
                     decoration: InputDecoration(
@@ -343,26 +410,42 @@ class _FoodItemsScreenState extends State<FoodItemsScreen> {
                   ),
                   const SizedBox(height: 20),
                   
-                  // Add Button
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
                       style: ElevatedButton.styleFrom(backgroundColor: Colors.deepPurple, padding: const EdgeInsets.symmetric(vertical: 15), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))),
                       onPressed: () {
-                        setState(() {
-                          // Construct Remarks: Combine Size + User Input
-                          String finalRemarks = remarksController.text;
-                          if (isFashion) {
-                            finalRemarks = "Size: $selectedSize. $finalRemarks";
+                        String newItemCategory = _getTopLevelCategory(food['image_icon']!);
+                        
+                        if (userCart.isNotEmpty) {
+                          String currentCartCategory = _getTopLevelCategory(userCart[0]['image_icon']!);
+                          
+                          if (newItemCategory != currentCartCategory) {
+                             showDialog(
+                               context: context,
+                               builder: (ctx) => AlertDialog(
+                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                                 title: Row(children: const [Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 30), SizedBox(width: 10), Text("Category Conflict")]),
+                                 content: Text("Your cart contains '$currentCartCategory' items.\n\nYou cannot mix them with '$newItemCategory'.\n\nWould you like to clear the cart?", style: const TextStyle(fontSize: 16)),
+                                 actions: [
+                                   TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Cancel", style: TextStyle(color: Colors.grey))),
+                                   ElevatedButton(
+                                     style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                                     onPressed: () { setState(() { userCart.clear(); }); Navigator.pop(ctx); ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Cart cleared!"), duration: Duration(seconds: 1))); },
+                                     child: const Text("Clear Cart", style: TextStyle(color: Colors.white)),
+                                   ),
+                                 ],
+                               ),
+                             );
+                             return;
                           }
+                        }
 
-                          // Logic to add to cart
-                          // Note: For fashion, we treat different sizes as different items, so we check remarks/size too
-                          int existingIndex = userCart.indexWhere((item) => 
-                            item['name'] == food['name'] && 
-                            item['seller'] == food['seller'] &&
-                            (!isFashion || (item['remarks'] ?? '').contains("Size: $selectedSize")) // Strict check for fashion size
-                          );
+                        setState(() {
+                          String finalRemarks = remarksController.text;
+                          if (isFashion) finalRemarks = "Size: $selectedSize. $finalRemarks";
+
+                          int existingIndex = userCart.indexWhere((item) => item['name'] == food['name'] && item['seller'] == food['seller'] && (!isFashion || (item['remarks'] ?? '').contains("Size: $selectedSize")));
 
                           if (existingIndex != -1) {
                             userCart[existingIndex]['quantity'] = (userCart[existingIndex]['quantity'] as int) + quantity;
@@ -403,7 +486,25 @@ class _FoodItemsScreenState extends State<FoodItemsScreen> {
               SliverAppBar(
                 expandedHeight: 160.0, floating: false, pinned: true, backgroundColor: Colors.deepPurple,
                 leading: IconButton(icon: const CircleAvatar(backgroundColor: Colors.white, child: Icon(Icons.arrow_back, color: Colors.black)), onPressed: () => Navigator.pop(context)),
-                actions: [IconButton(icon: const CircleAvatar(backgroundColor: Colors.white, child: Icon(Icons.search, color: Colors.black)), onPressed: () => setState(() => _showSearch = !_showSearch)), const SizedBox(width: 15)],
+                actions: [
+                  // --- NEW: INFO BUTTON ---
+                  IconButton(
+                    icon: const CircleAvatar(backgroundColor: Colors.white, child: Icon(Icons.info_outline, color: Colors.deepPurple)),
+                    onPressed: _showShopInfoDialog, // Call the new dialog function
+                  ),
+                  const SizedBox(width: 10),
+                  // --- CHAT BUTTON ---
+                  IconButton(
+                    icon: const CircleAvatar(backgroundColor: Colors.white, child: Icon(Icons.chat_bubble_outline, color: Colors.deepPurple)),
+                    onPressed: () {
+                      Navigator.push(context, MaterialPageRoute(builder: (context) => ChatScreen(sellerName: widget.sellerName)));
+                    }
+                  ),
+                  const SizedBox(width: 10),
+                  // --- SEARCH BUTTON ---
+                  IconButton(icon: const CircleAvatar(backgroundColor: Colors.white, child: Icon(Icons.search, color: Colors.black)), onPressed: () => setState(() => _showSearch = !_showSearch)), 
+                  const SizedBox(width: 15)
+                ],
                 flexibleSpace: FlexibleSpaceBar(centerTitle: true, title: Text(widget.sellerName, style: const TextStyle(color: Colors.white, fontSize: 16, shadows: [Shadow(color: Colors.black45, blurRadius: 5)])), background: Container(decoration: const BoxDecoration(gradient: LinearGradient(colors: [Colors.deepPurple, Colors.purpleAccent], begin: Alignment.bottomLeft, end: Alignment.topRight)), child: Center(child: Hero(tag: "seller_${widget.sellerName}", child: const Icon(Icons.store, size: 80, color: Colors.white24))))),
               ),
               if (_showSearch) SliverToBoxAdapter(child: Padding(padding: const EdgeInsets.all(15.0), child: TextField(autofocus: true, onChanged: (val) => setState(() => _inShopSearch = val), decoration: InputDecoration(hintText: "Search in ${widget.sellerName}...", prefixIcon: const Icon(Icons.search), filled: true, fillColor: Colors.grey[100], border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide.none))))),
@@ -420,7 +521,37 @@ class _FoodItemsScreenState extends State<FoodItemsScreen> {
   Widget _buildFoodItem(Map<String, String> food) {
     return InkWell(
       onTap: () => _showAddToCartDialog(food),
-      child: Container(margin: const EdgeInsets.symmetric(horizontal: 15, vertical: 8), padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15), border: Border.all(color: Colors.grey.shade100), boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.05), spreadRadius: 1, blurRadius: 5)]), child: Row(children: [Container(width: 80, height: 80, decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(15)), child: Icon(food['image_icon'] == 'checkroom' ? Icons.checkroom : food['image_icon'] == 'computer' ? Icons.computer : Icons.fastfood, color: Colors.deepPurpleAccent, size: 35)), const SizedBox(width: 15), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(food['name']!, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)), const SizedBox(height: 5), Text("RM ${food['price']}", style: const TextStyle(fontSize: 15, color: Colors.grey, fontWeight: FontWeight.bold))])), Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: Colors.deepPurple.withOpacity(0.1), shape: BoxShape.circle), child: const Icon(Icons.add, color: Colors.deepPurple, size: 20))])),
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 15, vertical: 8), 
+        padding: const EdgeInsets.all(10), 
+        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15), border: Border.all(color: Colors.grey.shade100), boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.05), spreadRadius: 1, blurRadius: 5)]), 
+        child: Row(
+          children: [
+            Container(
+              width: 80, 
+              height: 80, 
+              decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(15)), 
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(15),
+                child: food.containsKey('image_url') && food['image_url'] != null
+                  ? Image.network(
+                      food['image_url']!,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) => Icon(food['image_icon'] == 'checkroom' ? Icons.checkroom : food['image_icon'] == 'computer' ? Icons.computer : Icons.fastfood, color: Colors.deepPurpleAccent, size: 35),
+                      loadingBuilder: (context, child, loadingProgress) {
+                        if (loadingProgress == null) return child;
+                        return const Center(child: CircularProgressIndicator(strokeWidth: 2));
+                      },
+                    )
+                  : Icon(food['image_icon'] == 'checkroom' ? Icons.checkroom : food['image_icon'] == 'computer' ? Icons.computer : Icons.fastfood, color: Colors.deepPurpleAccent, size: 35),
+              ),
+            ),
+            const SizedBox(width: 15), 
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(food['name']!, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)), const SizedBox(height: 5), Text("RM ${food['price']}", style: const TextStyle(fontSize: 15, color: Colors.grey, fontWeight: FontWeight.bold))])), 
+            Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: Colors.deepPurple.withOpacity(0.1), shape: BoxShape.circle), child: const Icon(Icons.add, color: Colors.deepPurple, size: 20))
+          ]
+        )
+      ),
     );
   }
 }
